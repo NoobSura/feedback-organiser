@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Customer Feedback Labeller</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="index.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/genai": "https://esm.run/@google/genai",
+          "xlsx": "https://esm.run/xlsx"
+        }
+      }
+    </script>
+    <script type="module" src="index.tsx"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Customer Feedback Labeller</h1>
+        <p>
+          Upload or paste customer feedback to automatically generate relevant labels.
+        </p>
+      </header>
+
+      <div class="input-section">
+        <div class="file-upload-wrapper">
+            <label for="file-upload" class="file-upload-button">Upload Feedback File (CSV/Excel)</label>
+            <input id="file-upload" type="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"/>
+            <span id="file-name" class="file-name">No file chosen</span>
+        </div>
+        <textarea
+          id="feedback-input"
+          placeholder="Or paste feedback here, one per line..."
+          rows="10"
+          aria-label="Customer Feedback Input"
+        ></textarea>
+         <div class="system-prompt-wrapper">
+          <label for="system-prompt-input">Fine-tune AI Behavior (System Prompt)</label>
+          <textarea 
+            id="system-prompt-input"
+            rows="3"
+            placeholder="e.g., You are an expert feedback analyst. Be concise."
+            aria-label="System Prompt Input"
+          ></textarea>
+        </div>
+        <div class="custom-labels-wrapper">
+          <label for="custom-labels-input">Custom Labels (comma-separated)</label>
+          <input 
+            id="custom-labels-input"
+            type="text"
+            placeholder="e.g., 'Pricing', 'Onboarding', 'Performance'"
+            aria-label="Custom Labels Input"
+          />
+        </div>
+        <button id="analyze-button" disabled>Analyze Feedback</button>
+      </div>
+
+      <div id="loading-spinner" class="loading-spinner" role="status" aria-live="polite" hidden></div>
+
+      <section id="results-section" aria-live="polite"></section>
+    </main>
+  </body>
+</html>

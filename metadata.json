@@ -1,0 +1,5 @@
+{
+  "name": "Customer Feedback Labeller",
+  "description": "Uses AI to automatically analyze and label customer feedback from text.",
+  "requestFramePermissions": []
+}
