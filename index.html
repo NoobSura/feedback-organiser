@@ -38,28 +38,35 @@
         ></textarea>
          <div class="system-prompt-wrapper">
           <label for="system-prompt-input">Fine-tune AI Behavior (System Prompt)</label>
-          <textarea 
+          <textarea
             id="system-prompt-input"
             rows="3"
             placeholder="e.g., You are an expert feedback analyst. Be concise."
             aria-label="System Prompt Input"
           ></textarea>
         </div>
-        <div class="custom-labels-wrapper">
-          <label for="custom-labels-input">Custom Labels (comma-separated)</label>
-          <input 
-            id="custom-labels-input"
-            type="text"
-            placeholder="e.g., 'Pricing', 'Onboarding', 'Performance'"
-            aria-label="Custom Labels Input"
-          />
-        </div>
         <button id="analyze-button" disabled>Analyze Feedback</button>
       </div>
-
+      
       <div id="loading-spinner" class="loading-spinner" role="status" aria-live="polite" hidden></div>
+      <p id="status-message" class="status-message" aria-live="assertive"></p>
 
-      <section id="results-section" aria-live="polite"></section>
+      <section id="results-section" aria-live="polite">
+        <div id="results-header" hidden>
+          <div class="results-header-top">
+            <div>
+              <h2>Analysis Results</h2>
+              <p>Review and edit the labels below before exporting.</p>
+            </div>
+            <div class="export-buttons">
+              <button id="export-button" disabled>Export to Excel</button>
+              <button id="export-exploded-button" disabled>Export by Label</button>
+            </div>
+          </div>
+          <div id="label-counts-summary"></div>
+        </div>
+        <div id="results-table-container"></div>
+      </section>
     </main>
   </body>
 </html>

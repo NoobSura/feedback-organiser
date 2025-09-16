@@ -9,10 +9,16 @@ const fileInput = document.getElementById('file-upload') as HTMLInputElement;
 const fileNameSpan = document.getElementById('file-name') as HTMLSpanElement;
 const feedbackInput = document.getElementById('feedback-input') as HTMLTextAreaElement;
 const systemPromptInput = document.getElementById('system-prompt-input') as HTMLTextAreaElement;
-const customLabelsInput = document.getElementById('custom-labels-input') as HTMLInputElement;
 const analyzeButton = document.getElementById('analyze-button') as HTMLButtonElement;
+const exportButton = document.getElementById('export-button') as HTMLButtonElement;
+const exportExplodedButton = document.getElementById('export-exploded-button') as HTMLButtonElement;
 const loadingSpinner = document.getElementById('loading-spinner') as HTMLDivElement;
 const resultsSection = document.getElementById('results-section') as HTMLElement;
+const resultsHeader = document.getElementById('results-header') as HTMLElement;
+const resultsTableContainer = document.getElementById('results-table-container') as HTMLElement;
+const statusMessage = document.getElementById('status-message') as HTMLParagraphElement;
+const labelCountsSummary = document.getElementById('label-counts-summary') as HTMLDivElement;
+
 
 const API_KEY = process.env.API_KEY;
 if (!API_KEY) {
@@ -20,6 +26,8 @@ if (!API_KEY) {
   throw new Error("API_KEY not set");
 }
 const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+let analysisResults: { feedback: string; labels: string[]; isIncorrect?: boolean }[] = [];
 
 const checkInputs = () => {
   analyzeButton.disabled = !feedbackInput.value.trim();
@@ -79,22 +87,25 @@ analyzeButton.addEventListener('click', async () => {
   const feedbackText = feedbackInput.value.trim();
   if (!feedbackText) return;
 
-  resultsSection.innerHTML = '';
+  // UI Reset
+  resultsTableContainer.innerHTML = '';
+  resultsHeader.hidden = true;
+  exportButton.disabled = true;
+  exportExplodedButton.disabled = true;
   loadingSpinner.hidden = false;
   analyzeButton.disabled = true;
+  statusMessage.textContent = '';
+  statusMessage.classList.remove('error');
+  labelCountsSummary.innerHTML = '';
+  labelCountsSummary.hidden = true;
+  analysisResults = [];
+
+  const feedbackLines = feedbackText.split('\n').filter(line => line.trim() !== '');
+  const BATCH_SIZE = 250;
+  const totalBatches = Math.ceil(feedbackLines.length / BATCH_SIZE);
 
   const systemPrompt = systemPromptInput.value.trim();
-  const customLabelsValue = customLabelsInput.value.trim();
-  const customLabels = customLabelsValue ? customLabelsValue.split(',').map(label => label.trim()).filter(label => label) : [];
-
-  let prompt = `Please analyze the following customer feedback. For each distinct piece of feedback, provide the original feedback text and assign a few relevant labels (e.g., 'Bug Report', 'Feature Request', 'Positive Feedback', 'UI/UX').`;
-
-  if (customLabels.length > 0) {
-    prompt += ` In addition to any other relevant labels, please consider using the following custom labels if they are applicable: ${customLabels.join(', ')}.`;
-  }
-
-  prompt += `\n\n---FEEDBACK---\n${feedbackText}`;
-
+  
   const modelConfig: GenerateContentConfig = {
     responseMimeType: "application/json",
     responseSchema: {
@@ -118,45 +129,244 @@ analyzeButton.addEventListener('click', async () => {
       },
     },
   };
-
   if (systemPrompt) {
     modelConfig.systemInstruction = systemPrompt;
   }
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: modelConfig,
-    });
+    for (let i = 0; i < totalBatches; i++) {
+        const batchStart = i * BATCH_SIZE;
+        const batchEnd = batchStart + BATCH_SIZE;
+        const batchLines = feedbackLines.slice(batchStart, batchEnd);
+        const batchText = batchLines.join('\n');
 
-    const resultText = response.text;
-    const labeledFeedback = JSON.parse(resultText);
+        statusMessage.textContent = `Processing batch ${i + 1} of ${totalBatches}...`;
 
-    if (labeledFeedback.length > 0) {
-        generateAndDownloadExcel(labeledFeedback);
-        resultsSection.innerHTML = '<p class="success">Analysis complete! Your Excel file has been downloaded.</p>';
+        const prompt = `Analyze each line of the following customer feedback individually. Return a JSON array where each object corresponds to a single line of feedback from the input. Do not skip, merge, or alter any lines. Each object must contain two keys: 'feedback' (the original, unmodified text of the feedback line) and 'labels' (an array of relevant string labels, e.g., 'Bug Report', 'Feature Request').\n\n---FEEDBACK---\n${batchText}`;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: modelConfig,
+        });
+
+        const resultText = response.text;
+        const labeledFeedbackBatch = JSON.parse(resultText);
+
+        if (labeledFeedbackBatch && labeledFeedbackBatch.length > 0) {
+            analysisResults.push(...labeledFeedbackBatch.map((item: any) => ({ ...item, isIncorrect: false })));
+        }
+    }
+
+    if (analysisResults.length > 0) {
+        statusMessage.textContent = `Analysis complete! ${analysisResults.length} items processed.`;
+        renderResultsTable();
+        updateAndRenderStats();
+        resultsHeader.hidden = false;
+        exportButton.disabled = false;
+        exportExplodedButton.disabled = false;
     } else {
-        resultsSection.innerHTML = '<p>No feedback could be analyzed. Please check your input.</p>';
+        statusMessage.textContent = 'No feedback could be analyzed. Please check your input.';
     }
 
   } catch (error) {
     console.error(error);
-    resultsSection.innerHTML = `<p class="error">An error occurred while analyzing the feedback. Please try again.</p>`;
+    statusMessage.textContent = `An error occurred during analysis. Please try again.`;
+    statusMessage.classList.add('error');
+    resultsTableContainer.innerHTML = `<p class="error">An error occurred while analyzing the feedback. Please try again.</p>`;
   } finally {
     loadingSpinner.hidden = true;
     checkInputs();
   }
 });
 
-function generateAndDownloadExcel(labeledFeedback: { feedback: string; labels: string[] }[]) {
+function normalizeLabel(label: string): string {
+    return label.trim().toLowerCase().replace(/^#+/, '');
+}
+
+function updateAndRenderStats() {
+    const labelCounts = new Map<string, number>();
+    analysisResults.forEach(item => {
+        item.labels.forEach(label => {
+            const normalizedLabel = normalizeLabel(label);
+            if(normalizedLabel) {
+                labelCounts.set(normalizedLabel, (labelCounts.get(normalizedLabel) || 0) + 1);
+            }
+        });
+    });
+
+    labelCountsSummary.innerHTML = '';
+    if (labelCounts.size === 0) {
+        labelCountsSummary.hidden = true;
+        return;
+    }
+    labelCountsSummary.hidden = false;
+
+    const sortedLabels = [...labelCounts.entries()].sort((a, b) => b[1] - a[1]);
+
+    const summaryHtml = sortedLabels.map(([label, count]) => 
+        `<span class="label-count-item">
+            <span class="label-name">${label}</span>
+            <span class="label-count">${count}</span>
+        </span>`
+    ).join('');
+
+    labelCountsSummary.innerHTML = `<strong>Label Counts:</strong> ${summaryHtml}`;
+}
+
+function renderResultsTable() {
+  resultsTableContainer.innerHTML = '';
+
+  if (analysisResults.length === 0) return;
+
+  const table = document.createElement('table');
+  table.className = 'results-table';
+
+  const thead = document.createElement('thead');
+  thead.innerHTML = `
+    <tr>
+      <th>Feedback</th>
+      <th>Labels (Editable)</th>
+      <th class="incorrect-col">Incorrect?</th>
+    </tr>
+  `;
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  analysisResults.forEach((item, index) => {
+    const row = document.createElement('tr');
+    if (item.isIncorrect) {
+      row.classList.add('incorrect-row');
+    }
+    const feedbackCell = document.createElement('td');
+    feedbackCell.textContent = item.feedback;
+    
+    const labelsCell = document.createElement('td');
+    const labelsInput = document.createElement('input');
+    labelsInput.type = 'text';
+    labelsInput.className = 'labels-input';
+    labelsInput.value = item.labels.join(', ');
+    labelsInput.dataset.index = index.toString();
+
+    labelsInput.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      const updatedIndex = parseInt(target.dataset.index!, 10);
+      const updatedLabels = target.value.split(',').map(l => l.trim()).filter(Boolean);
+      analysisResults[updatedIndex].labels = updatedLabels;
+      updateAndRenderStats(); // Update stats on label change
+    });
+    
+    const incorrectCell = document.createElement('td');
+    incorrectCell.className = 'incorrect-col';
+    const incorrectCheckbox = document.createElement('input');
+    incorrectCheckbox.type = 'checkbox';
+    incorrectCheckbox.checked = !!item.isIncorrect;
+    incorrectCheckbox.dataset.index = index.toString();
+    incorrectCheckbox.title = "Mark this analysis as incorrect";
+
+    incorrectCheckbox.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement;
+        const updatedIndex = parseInt(target.dataset.index!, 10);
+        analysisResults[updatedIndex].isIncorrect = target.checked;
+        if (target.checked) {
+            row.classList.add('incorrect-row');
+        } else {
+            row.classList.remove('incorrect-row');
+        }
+    });
+
+    labelsCell.appendChild(labelsInput);
+    incorrectCell.appendChild(incorrectCheckbox);
+
+    row.appendChild(feedbackCell);
+    row.appendChild(labelsCell);
+    row.appendChild(incorrectCell);
+    tbody.appendChild(row);
+  });
+
+  table.appendChild(tbody);
+  resultsTableContainer.appendChild(table);
+}
+
+
+exportButton.addEventListener('click', () => {
+    if (analysisResults.length > 0) {
+        generateAndDownloadExcel(analysisResults);
+    }
+});
+
+exportExplodedButton.addEventListener('click', () => {
+    if (analysisResults.length > 0) {
+        generateAndDownloadExplodedExcel(analysisResults);
+    }
+});
+
+function generateAndDownloadExcel(labeledFeedback: { feedback: string; labels: string[], isIncorrect?: boolean }[]) {
     const dataForSheet = labeledFeedback.map(item => ({
         Feedback: item.feedback,
         Labels: item.labels.join(', '),
+        'Incorrect Analysis': item.isIncorrect ? 'Yes' : 'No',
     }));
 
     const ws = XLSX.utils.json_to_sheet(dataForSheet);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Feedback Analysis");
     XLSX.writeFile(wb, "feedback_analysis_results.xlsx");
+}
+
+function generateAndDownloadExplodedExcel(labeledFeedback: { feedback: string; labels: string[], isIncorrect?: boolean }[]) {
+    const wb = XLSX.utils.book_new();
+
+    // --- Sheet 1: Exploded by Label ---
+    const explodedData: { Feedback: string; 'Single Label': string; 'Incorrect Analysis': string }[] = [];
+    labeledFeedback.forEach(item => {
+        if (item.labels.length === 0) {
+            explodedData.push({
+                Feedback: item.feedback,
+                'Single Label': '',
+                'Incorrect Analysis': item.isIncorrect ? 'Yes' : 'No',
+            });
+        } else {
+            item.labels.forEach(label => {
+                explodedData.push({
+                    Feedback: item.feedback,
+                    'Single Label': label,
+                    'Incorrect Analysis': item.isIncorrect ? 'Yes' : 'No',
+                });
+            });
+        }
+    });
+    const wsExploded = XLSX.utils.json_to_sheet(explodedData);
+    XLSX.utils.book_append_sheet(wb, wsExploded, "Exploded by Label");
+
+
+    // --- Sheet 2: Compiled View ---
+    const compiledData = labeledFeedback.map(item => ({
+        Feedback: item.feedback,
+        Labels: item.labels.join(', '),
+        'Incorrect Analysis': item.isIncorrect ? 'Yes' : 'No',
+    }));
+    const wsCompiled = XLSX.utils.json_to_sheet(compiledData);
+    XLSX.utils.book_append_sheet(wb, wsCompiled, "Compiled View");
+
+
+    // --- Sheet 3: Label Counts ---
+    const labelCounts = new Map<string, number>();
+    labeledFeedback.forEach(item => {
+        item.labels.forEach(label => {
+            const normalizedLabel = normalizeLabel(label);
+            if(normalizedLabel) {
+                labelCounts.set(normalizedLabel, (labelCounts.get(normalizedLabel) || 0) + 1);
+            }
+        });
+    });
+    const countsData = Array.from(labelCounts.entries())
+        .map(([label, count]) => ({ Label: label, Count: count }))
+        .sort((a, b) => b.Count - a.Count);
+        
+    const wsCounts = XLSX.utils.json_to_sheet(countsData);
+    XLSX.utils.book_append_sheet(wb, wsCounts, "Label Counts");
+
+    // --- Download the file ---
+    XLSX.writeFile(wb, "feedback_analysis_detailed_export.xlsx");
 }

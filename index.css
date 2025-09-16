@@ -7,6 +7,8 @@
   --border-color: #e2e8f0;
   --border-radius: 0.5rem;
   --box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --error-bg: #fee2e2;
+  --error-text: #ef4444;
 }
 
 * {
@@ -42,6 +44,11 @@ h1 {
     font-size: 2.25rem;
     color: #1e293b;
     margin-bottom: 0.5rem;
+}
+
+h2 {
+    font-size: 1.5rem;
+    color: #1e293b;
 }
 
 p {
@@ -103,32 +110,15 @@ textarea:focus {
     box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
 }
 
-.system-prompt-wrapper,
-.custom-labels-wrapper {
+.system-prompt-wrapper {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.system-prompt-wrapper label,
-.custom-labels-wrapper label {
+.system-prompt-wrapper label {
   font-weight: 500;
   color: #475569;
-}
-
-#custom-labels-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
-  font-family: inherit;
-  font-size: 1rem;
-}
-
-#custom-labels-input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
 }
 
 button {
@@ -159,8 +149,20 @@ button:disabled {
   width: 40px;
   height: 40px;
   animation: spin 1s linear infinite;
-  margin: 2rem auto;
+  margin: 2rem auto 0;
 }
+
+.status-message {
+  text-align: center;
+  margin-top: 1rem;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.status-message.error {
+    color: var(--error-text);
+}
+
 
 @keyframes spin {
   0% { transform: rotate(0deg); }
@@ -171,18 +173,143 @@ button:disabled {
     margin-top: 2.5rem;
 }
 
-.error {
-    text-align: center;
-    color: #ef4444;
-    background-color: #fee2e2;
-    padding: 1rem;
-    border-radius: var(--border-radius);
+#results-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
-.success {
+.results-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.results-header-top h2, .results-header-top p {
+  margin: 0;
+}
+
+.export-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#export-button {
+  background-color: #16a34a;
+}
+#export-button:hover:not(:disabled) {
+  background-color: #15803d;
+}
+
+#export-exploded-button {
+  background-color: #0ea5e9;
+}
+#export-exploded-button:hover:not(:disabled) {
+  background-color: #0284c7;
+}
+
+#label-counts-summary {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-size: 0.9rem;
+  color: var(--text-color);
+}
+#label-counts-summary strong {
+  color: #1e293b;
+  margin-right: 0.5rem;
+}
+
+.label-count-item {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 1rem;
+  background-color: #eef2ff;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+}
+.label-name {
+  text-transform: capitalize;
+  font-weight: 500;
+  margin-right: 0.5rem;
+}
+.label-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+
+#results-table-container {
+  overflow-x: auto;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.results-table th, .results-table td {
+  border: 1px solid var(--border-color);
+  padding: 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.results-table th {
+  background-color: #f1f5f9;
+  font-weight: 600;
+}
+
+.results-table td:first-child {
+  width: 55%;
+  word-break: break-word;
+}
+
+.labels-input {
+  width: 100%;
+  border: 1px solid transparent;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.labels-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.incorrect-col {
+  width: 10%;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.incorrect-col input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.incorrect-row {
+  background-color: var(--error-bg);
+}
+
+
+.error {
     text-align: center;
-    color: #166534;
-    background-color: #dcfce7;
+    color: var(--error-text);
+    background-color: var(--error-bg);
     padding: 1rem;
     border-radius: var(--border-radius);
 }
